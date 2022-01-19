@@ -52,6 +52,8 @@ print(rank_1_tensor)
 # tf.Tensor([1 2 3], shape=(3,), dtype=int32)
 
 rank_2_tensor = tf.constant([[1, 2, 3], [4, 5, 6]])
+# print('rank_2_tensor.shape', rank_2_tensor.shape[1])
+# 3
 print(rank_2_tensor)
 # tf.Tensor(
 # [[1 2 3]

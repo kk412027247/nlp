@@ -1,11 +1,23 @@
 import tensorflow_datasets as tfds
 from tensorflow.keras.preprocessing import sequence
 from tensorflow.keras.layers import GRU, Bidirectional, Dense, Layer
+from tensorflow.keras import Model
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
 import tensorflow as tf
 
 tokenizer = tfds.deprecated.text.SubwordTextEncoder.load_from_file('gigaword32k.enc')
 start = tokenizer.vocab_size + 1
 end = tokenizer.vocab_size
+
+loss_object = SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+
+
+def loss_function(real, pred):
+    mask = tf.math.logical_not(tf.math.equal(real, 0))
+    loss_ = loss_object(real, pred)
+    mask = tf.cast(mask, dtype=loss_.dtype)
+    loss_ *= mask
+    return tf.reduce_mean(loss_)
 
 
 def encode(article, summary, start=start, end=end, tokenizer=tokenizer, art_max_len=128, smry_max_len=50):
@@ -39,19 +51,18 @@ class Embedding(object):
         return cls.embedding
 
 
-class Encoder(tf.keras.Model):
+class Encoder(Model):
     def __init__(self, vocab_size, embedding_dim, enc_units, batch_size):
         super(Encoder, self).__init__()
         self.batch_size = batch_size
         self.enc_units = enc_units
         self.embedding = Embedding.get_embedding(vocab_size, embedding_dim)
-        self.bigru = Bidirectional(
-            GRU(self.enc_units,
-                return_sequences=True,
-                return_state=True,
-                recurrent_initializer='glorot_uniform'),
-            merge_mode='concat')
-        self.relu = Dense(self.enc_units, activatioin='relu')
+        self.bigru = Bidirectional(GRU(self.enc_units,
+                                       return_sequences=True,
+                                       return_state=True,
+                                       recurrent_initializer='glorot_uniform'),
+                                   merge_mode='concat')
+        self.relu = Dense(self.enc_units, activation='relu')
 
     def call(self, x, hidden):
         x = self.embedding(x)
@@ -82,7 +93,7 @@ class BahdanauAttention(Layer):
         return context_vector, attention_weights
 
 
-class Decoder(tf.keras.Model):
+class Decoder(Model):
     def __init__(self, vocab_size, embedding_dim, dec_units, batch_sz):
         super(Decoder, self).__init__()
         self.batch_sz = batch_sz
@@ -95,7 +106,7 @@ class Decoder(tf.keras.Model):
     def call(self, x, hidden, enc_output):
         context_vector, attention_weights = self.attention(hidden, enc_output)
         x = self.embedding(x)
-        x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=1)
+        x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=-1)
         output, state = self.gru(x)
         output = tf.reshape(output, (-1, output.shape[2]))
         x = self.fc1(output)
