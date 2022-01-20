@@ -11,6 +11,8 @@ import time
 parser = argparse.ArgumentParser(description='Train the seq2seq model')
 parser.add_argument('--checkpoint', type=str, help='Name of the checkpoint directory to restart training from.')
 
+# python s2s_training.py --checkpoint training_checkpoints-2022-Jan-20-19-42-28
+
 proxy = 'http://127.0.0.1:8001'
 os.environ['http_proxy'] = proxy
 os.environ['HTTP_PROXY'] = proxy
