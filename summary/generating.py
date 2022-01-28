@@ -7,6 +7,7 @@ import tensorflow_datasets as tfds
 import seq2seq as s2s
 import matplotlib.ticker as ticker
 from tensorflow.keras.preprocessing import sequence
+from rouge_score import rouge_scorer as rs
 
 tf.keras.backend.clear_session()  # - for easy reset of notebook state
 
@@ -229,3 +230,47 @@ def summarize(article, algo='greedy', beam_width=3, alpha=0., verbose=True):
     print('** Predicted Summary: {}'.format(summary))
     attention_plot = attention_plot[:len(summary.split(' ')), :len(article.split(' '))]
     plot_attention(attention_plot, article.split(' '), summary.split(' '))
+
+
+def summarize_quietly(article, algo='greedy', beam_width=3, alpha=0., verbose=True):
+    if algo == 'greedy':
+        summary, article, attention_plot = greedy_search(article)
+    elif algo == 'beam':
+        summary, article, attention_plot = beam_search(article, beam_width=beam_width)
+    elif algo == 'beam-norm':
+        summary, article, attention_plot = beam_search_norm(article, beam_width=beam_width, alpha=alpha,
+                                                            verbose=verbose)
+    else:
+        print("Algorithm {} not implemented".format(algo))
+        return
+    return summary
+
+
+scorer = rs.RougeScorer(['rougeL'], use_stemmer=True)
+
+(ds_train, ds_val, ds_test), ds_info = tfds.load(
+    'gigaword',
+    split=['train', 'validation', 'test'],
+    shuffle_files=True,
+    as_supervised=True,
+    with_info=True,
+)
+
+articles = 1000
+f1 = 0.
+prec = 0.
+rec = 0.
+beam_width = 1
+
+for art, smm in ds_val.take(articles):
+    summ = summarize_quietly(str(art.numpy()), algo='beam-norm', beam_width=1, verbose=False)
+    score = scorer.score(str(smm.numpy()), summ)
+    f1 == score['rougeL'].fmeasure / articles
+    prec += score['rougeL'].precision / articles
+    rec += score['rougeL'].recall / articles
+    if random.choices((True, False), [1, 99])[0] is True:
+        print("Article:", art.numpy())
+        print("Ground Truth:", smm.numpy())
+        print("Greedy Summary:", summarize_quietly(str(art.numpy()), algo='beam-norm', beam_width=1, verbose=False))
+        print('beam Search Summary: ', summ, '\n')
+print('precision: {:.6f}, Recall:{:.6f}, F1-Score: {:.6f}'.format(prec, rec, f1))
