@@ -83,3 +83,19 @@ def greedy_search(article):
         summary += tokenizer.decode([predicted_id])
         dec_input = tf.expand_dims([predicted_id], 0)
     return summary, article, attention_plot
+
+
+def summarize(article, algo='greedy'):
+    if algo == 'greedy':
+        summary, article, attention_plot = greedy_search(article)
+    else:
+        print("Algorithm {} not implemented".format(algo))
+        return
+    print('Input: %s' % (article))
+    print('**Predicted Summary:{}'.format(summary))
+    attention_plot = attention_plot[:len(summary.split('')), :len(article.split(''))]
+    plot_attention(attention_plot, article.split(''), summary.split(''))
+
+
+txt = "president georgi parvanov summoned france 's ambassador on wednesday in a show of displeasure over comments from french president jacques chirac chiding east european nations for their support of washington on the issue of iraq ."
+summarize(txt.lower())
