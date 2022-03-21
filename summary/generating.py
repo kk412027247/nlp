@@ -7,6 +7,7 @@ import tensorflow_datasets as tfds
 import seq2seq as s2s
 import matplotlib.ticker as ticker
 from tensorflow.keras.preprocessing import sequence
+from rouge_score import rouge_scorer as rs
 
 tf.keras.backend.clear_session()  # - for easy reset of notebook state
 
@@ -91,11 +92,185 @@ def summarize(article, algo='greedy'):
     else:
         print("Algorithm {} not implemented".format(algo))
         return
-    print('Input: %s' % (article))
-    print('**Predicted Summary:{}'.format(summary))
-    attention_plot = attention_plot[:len(summary.split('')), :len(article.split(''))]
-    plot_attention(attention_plot, article.split(''), summary.split(''))
+    print('Input: %s' % article)
+    print('** Predicted Summary: {}'.format(summary))
+    attention_plot = attention_plot[:len(summary.split(' ')), :len(article.split(' '))]
+    plot_attention(attention_plot, article.split(' '), summary.split(' '))
 
 
-txt = "president georgi parvanov summoned france 's ambassador on wednesday in a show of displeasure over comments from french president jacques chirac chiding east european nations for their support of washington on the issue of iraq ."
+txt = "president georgi parvanov summoned france 's ambassador on wednesday in a show of displeasure over comments " \
+      "from french president jacques chirac chiding east european nations for their support of washington on the " \
+      "issue of iraq . "
+
 summarize(txt.lower())
+
+
+def beam_search(article, beam_width=3, art_max_len=128, sury_max_len=50, end_tk=end, verbose=True):
+    attention_plot = np.zeros((smry_max_len, art_max_len))
+    tokens = tokenizer.encode(article, )
+    if len(tokens) > art_max_len:
+        tokens = tokens[:art_max_len]
+    inputs = sequence.pad_sequences([tokens], padding='post', maxlen=art_max_len).squeeze()
+    inputs = tf.expand_dims(tf.convert_to_tensor(inputs), 0)
+    hidden = [tf.zeros((1, units)) for i in range(2)]
+    enc_out, enc_hidden = encoder(inputs, hidden)
+    dec_hidden = enc_hidden
+    dec_input = tf.expand_dims([start], 0)
+    start_pt = [([start], dec_hidden, attention_plot, 0.0)]
+
+    for t in range(smry_max_len):
+        options = list()
+        for row in start_pt:
+            allend = True
+            dec_input = row[0][-1]
+            if dec_input != end_tk:
+                dec_input = tf.expand_dims([dec_input], 0)
+                dec_hidden = row[1]
+                attn_plt = np.zeros((smry_max_len, art_max_len)) + row[2]
+                predictions, dec_hidden, attention_weights = decoder(dec_input, dec_hidden, enc_out)
+
+                attention_weights = tf.reshape(attention_weights, (-1,))
+                attn_plt[t] = attention_weights.numpy()
+                values, indices = tf.match.top_k(predictions[0], k=beam_width)
+                for tokid, scre in zip(indices, values):
+                    score = row[3] - np.log(scre)
+                    options.append(row[0] + [tokid], dec_hidden, attn_plt, score)
+                allend = False
+            else:
+                options.append(row)
+        if allend:
+            break
+        start_pt = sorted(options, key=lambda tup: tup[3])[:beam_width]
+    if verbose:
+        for idx, row in enumerate(start_pt):
+            tokens = [x for x in row[0] if x < end_tk]
+            print('Summary {} with {:5f}: {}'.format(idx, row[3], tokenizer.decode(tokens)))
+    summary = tokenizer.decode([x for x in start_pt[0][0] if x < end_tk])
+    attention_plot = start_pt[0][2]
+    return summary, article, attention_plot
+
+
+def summarize(article, algo='greedy', beam_width=3, verbose=True):
+    if algo == 'greedy':
+        summary, article, attention_plot = greedy_search(article)
+    elif algo == 'beam':
+        summary, article, attention_plot = beam_search(article, beam_width=beam_width, verbose=verbose)
+    else:
+        print("Algorithm {} not implemented".format(algo))
+        return
+    print('Input: %s' % article)
+    print('** Predicted Summary: {}'.format(summary))
+    attention_plot = attention_plot[:len(summary.split(' ')), :len(article.split(' '))]
+    plot_attention(attention_plot, article.split(' '), summary.split(' '))
+
+
+def length_wu(step, score, alpha=0.):
+    modifier = (((5 + step) ** alpha) / ((5 + 1) ** alpha))
+    return (score / modifier)
+
+
+def beam_search_norm(article, beam_width=3, art_max_len=128, smry_max_len=50, end_tk=end, alpha=0., verbose=True):
+    attention_plot = np.zeros((smry_max_len, art_max_len))
+    tokens = tokenizer.encode(article)
+    if len(tokens) > art_max_len:
+        tokens = tokens[:art_max_len]
+    inputs = sequence.pad_sequences([tokens], padding='post', maxlen=art_max_len).squeeze()
+    inputs = tf.expand_dims(tf.convert_to_tensor(inputs), 0)
+    hidden = [tf.zeros((1, units)) for i in range(2)]
+    enc_out, enc_hidden = encoder(inputs, hidden)
+    dec_hidden = enc_hidden
+    dec_input = tf.expand_dims([start], 0)
+    start_pt = [([start], dec_hidden, attention_plot, 0.0)]
+    for t in range(smry_max_len):
+        options = list()
+        for row in start_pt:
+            allend = True
+            dec_input = row[0][-1]
+            if dec_input != end_tk:
+                dec_input = tf.expand_dims([dec_input], 0)
+                dec_hidden = row[1]
+                attn_plt = np.zeros((smry_max_len, art_max_len)) + row[2]
+                assert id(attn_plt) is not id(row[2])
+                predictions, dec_hidden, attention_weights = decoder(dec_input, dec_hidden, enc_out)
+                assert id(dec_hidden) is not id(row[1])
+                attention_weights = tf.reshape(attention_weights, (-1,))
+                attn_plt[t] = attention_weights.numpy()
+                values, indices = tf.match.top_k(predictions[0], k=beam_width)
+                for tokid, scre in zip(indices, values):
+                    score = row[3] - np.log(scre)
+                    score = length_wu(t, score, alpha)
+                    options.append((row[0] + [tokid], dec_hidden, attn_plt, score))
+                allend = False
+            else:
+                options.append(row)
+        if allend:
+            break
+        start_pt = sorted(options, key=lambda tup: tup[3])[:beam_width]
+    if verbose:
+        for idx, row in enumerate(start_pt):
+            tokens = [x for x in row[0] if x < end_tk]
+            print('Summary {} with score {:5f}: {}'.format(idx, row[3], tokenizer.decode(tokens)))
+    summary = tokenizer.decode([x for x in start_pt[0][0] if x < end_tk])
+    attention_plot = start_pt[0][2]
+    return summary, article, attention_plot
+
+
+def summarize(article, algo='greedy', beam_width=3, alpha=0., verbose=True):
+    if algo == 'greedy':
+        summary, article, attention_plot = greedy_search(article)
+    elif algo == 'beam':
+        summary, article, attention_plot = beam_search(article, beam_width=beam_width, verbose=verbose)
+    elif algo == 'beam-norm':
+        summary, article, attention_plot = beam_search_norm(article, beam_width=beam_width, alpha=alpha,
+                                                            verbose=verbose)
+    else:
+        print("Algorithm {} not implemented".format(algo))
+        return
+    print('Input: %s' % article)
+    print('** Predicted Summary: {}'.format(summary))
+    attention_plot = attention_plot[:len(summary.split(' ')), :len(article.split(' '))]
+    plot_attention(attention_plot, article.split(' '), summary.split(' '))
+
+
+def summarize_quietly(article, algo='greedy', beam_width=3, alpha=0., verbose=True):
+    if algo == 'greedy':
+        summary, article, attention_plot = greedy_search(article)
+    elif algo == 'beam':
+        summary, article, attention_plot = beam_search(article, beam_width=beam_width)
+    elif algo == 'beam-norm':
+        summary, article, attention_plot = beam_search_norm(article, beam_width=beam_width, alpha=alpha,
+                                                            verbose=verbose)
+    else:
+        print("Algorithm {} not implemented".format(algo))
+        return
+    return summary
+
+
+scorer = rs.RougeScorer(['rougeL'], use_stemmer=True)
+
+(ds_train, ds_val, ds_test), ds_info = tfds.load(
+    'gigaword',
+    split=['train', 'validation', 'test'],
+    shuffle_files=True,
+    as_supervised=True,
+    with_info=True,
+)
+
+articles = 1000
+f1 = 0.
+prec = 0.
+rec = 0.
+beam_width = 1
+
+for art, smm in ds_val.take(articles):
+    summ = summarize_quietly(str(art.numpy()), algo='beam-norm', beam_width=1, verbose=False)
+    score = scorer.score(str(smm.numpy()), summ)
+    f1 == score['rougeL'].fmeasure / articles
+    prec += score['rougeL'].precision / articles
+    rec += score['rougeL'].recall / articles
+    if random.choices((True, False), [1, 99])[0] is True:
+        print("Article:", art.numpy())
+        print("Ground Truth:", smm.numpy())
+        print("Greedy Summary:", summarize_quietly(str(art.numpy()), algo='beam-norm', beam_width=1, verbose=False))
+        print('beam Search Summary: ', summ, '\n')
+print('precision: {:.6f}, Recall:{:.6f}, F1-Score: {:.6f}'.format(prec, rec, f1))
