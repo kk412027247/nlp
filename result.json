@@ -1,0 +1,58 @@
+[
+  {
+    "entity": "LABEL_8",
+    "score": 0.080647975,
+    "index": 1,
+    "word": "I",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_0",
+    "score": 0.08985176,
+    "index": 2,
+    "word": "am",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_4",
+    "score": 0.07850751,
+    "index": 3,
+    "word": "Joe",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_8",
+    "score": 0.07843044,
+    "index": 4,
+    "word": "and",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_4",
+    "score": 0.079703614,
+    "index": 5,
+    "word": "live",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_0",
+    "score": 0.08386152,
+    "index": 6,
+    "word": "in",
+    "start": null,
+    "end": null
+  },
+  {
+    "entity": "LABEL_8",
+    "score": 0.081975386,
+    "index": 7,
+    "word": "London",
+    "start": null,
+    "end": null
+  }
+]
