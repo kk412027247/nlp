@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from zlib import crc32
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit
+from pandas.plotting import scatter_matrix
 
 HOUSING_PATH = os.path.join('data', 'housing')
 
@@ -39,12 +42,55 @@ train_set, test_set = split_train_test(housing, 0.2)
 print(len(train_set))
 print(len(test_set))
 
+#
+# def test_set_check(identifier, test_ratio):
+#     return crc32(np.int64(identifier)) & 0xffffffff < test_ratio * 2 ** 32
+#
+#
+# def split_train_test_by_id(data, test_ratio, id_column):
+#     ids = data[id_column]
+#     in_test_set = ids.apply(lambda id_: test_set_check(id_, test_ratio))
+#     return data.loc[~in_test_set], data.loc[in_test_set]
+#
+#
+# housing_with_id = housing.reset_index()
+#
+# train_set, test_set = split_train_test_by_id(housing_with_id, 0.2, 'index')
 
-def test_set_check(identifier, test_ratio):
-    return crc32(np.int64(identifier)) & 0xffffffff < test_ratio * 2 ** 32
+train_set, test_set = train_test_split(housing, test_size=0.2, random_state=42)
 
+housing['income_cat'] = pd.cut(housing['median_income'], bins=[0., 1.5, 3.0, 4.5, 6., np.inf], labels=[1, 2, 3, 4, 5])
 
-def split_train_test_by_id(data, test_ratio, id_column):
-    ids = data[id_column]
-    in_test_set = ids.apply(lambda id_: test_set_check(id_, test_ratio))
-    return data.loc[~in_test_set], data.loc[in_test_set]
+housing['income_cat'].hist()
+plt.show()
+
+split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+for train_index, test_index in split.split(housing, housing['income_cat']):
+    strat_train_set = housing.loc[train_index]
+    strat_test_set = housing.loc[test_index]
+
+print(strat_test_set['income_cat'].value_counts() / len(strat_test_set))
+
+for set_ in (strat_train_set, strat_test_set):
+    set_.drop('income_cat', axis=1, inplace=True)
+
+housing = strat_train_set.copy()
+
+housing.plot(kind='scatter', x='longitude', y='latitude', alpha=0.4, s=housing['population'] / 100, label='population', figsize=(10, 7), c='median_house_value', cmap=plt.get_cmap('jet'),
+             colorbar=True)
+
+plt.show()
+
+corr_matrix = housing.corr()
+
+r = corr_matrix['median_house_value'].sort_values(ascending=False)
+
+print(r)
+
+attributes = ['median_house_value', 'median_income', 'total_rooms', 'housing_median_age']
+
+scatter_matrix(housing[attributes], figsize=(12, 8))
+plt.show()
+
+housing.plot(kind='scatter', x='median_income', y='median_house_value', alpha=0.1)
+plt.show()
