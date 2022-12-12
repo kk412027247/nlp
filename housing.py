@@ -6,6 +6,9 @@ from zlib import crc32
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedShuffleSplit
 from pandas.plotting import scatter_matrix
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder
 
 HOUSING_PATH = os.path.join('data', 'housing')
 
@@ -27,7 +30,7 @@ print(housing.describe())
 
 housing.hist(bins=50, figsize=(20, 15))
 
-plt.show()
+# plt.show()
 
 
 def split_train_test(data, test_ratio):
@@ -62,7 +65,8 @@ train_set, test_set = train_test_split(housing, test_size=0.2, random_state=42)
 housing['income_cat'] = pd.cut(housing['median_income'], bins=[0., 1.5, 3.0, 4.5, 6., np.inf], labels=[1, 2, 3, 4, 5])
 
 housing['income_cat'].hist()
-plt.show()
+# plt.show()
+
 
 split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 for train_index, test_index in split.split(housing, housing['income_cat']):
@@ -79,7 +83,7 @@ housing = strat_train_set.copy()
 housing.plot(kind='scatter', x='longitude', y='latitude', alpha=0.4, s=housing['population'] / 100, label='population', figsize=(10, 7), c='median_house_value', cmap=plt.get_cmap('jet'),
              colorbar=True)
 
-plt.show()
+# plt.show()
 
 corr_matrix = housing.corr()
 
@@ -90,10 +94,10 @@ print(r)
 attributes = ['median_house_value', 'median_income', 'total_rooms', 'housing_median_age']
 
 scatter_matrix(housing[attributes], figsize=(12, 8))
-plt.show()
+# plt.show()
 
 housing.plot(kind='scatter', x='median_income', y='median_house_value', alpha=0.1)
-plt.show()
+# plt.show()
 
 housing['rooms_per_household'] = housing['total_rooms'] / housing['households']
 housing['bedrooms_per_room'] = housing['total_bedrooms'] / housing['total_rooms']
@@ -102,3 +106,42 @@ housing['population_per_household'] = housing['population'] / housing['household
 corr_matrix = housing.corr()
 r = corr_matrix['median_house_value'].sort_values(ascending=False)
 print(r)
+
+housing = strat_test_set.drop('median_house_value', axis = 1)
+housing_label = strat_train_set['median_house_value'].copy()
+
+housing.dropna(subset=['total_bedrooms'])
+housing.drop('total_bedrooms', axis=1)
+median = housing['total_bedrooms'].median()
+housing['total_bedrooms'].fillna(median, inplace=True)
+
+
+imputer  = SimpleImputer(strategy='median')
+
+housing_num = housing.drop('ocean_proximity', axis=1)
+
+imputer.fit(housing_num)
+
+print(imputer.statistics_)
+
+print(housing_num.median().values)
+
+X = imputer.transform(housing_num)
+
+housing_tr = pd.DataFrame(X, columns=housing_num.columns, index=housing_num.index)
+
+housing_cat = housing[['ocean_proximity']]
+
+print(housing_cat.head(10))
+
+ordinal_encouder = OrdinalEncoder()
+
+housing_cat_encoded = ordinal_encouder.fit_transform(housing_cat)
+
+print(housing_cat_encoded[:10])
+
+print(ordinal_encouder.categories_)
+
+cat_encoder = OneHotEncoder()
+housing_cat_1hot = cat_encoder.fit_transform(housing_cat)
+print(housing_cat_1hot.toarray())
