@@ -18,6 +18,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import GridSearchCV
 
 
 print('😂😄😂😄😂😄')
@@ -261,4 +262,22 @@ scores = cross_val_score(forest_reg, housing_prepared,
 forest_rmse_scores = np.sqrt(-scores)
 display_scores(forest_rmse_scores)
 
+param_grid = [
+    {'n_estimators': [3, 10, 30], 'max_features':[2, 4, 6, 8]},
+    {'bootstrap': [False], 'n_estimators':[3, 10], 'max_features':[2, 3, 4]}
+]
 
+forest_reg = RandomForestRegressor()
+
+grid_search = GridSearchCV(forest_reg, param_grid, cv=5,
+                           scoring='neg_mean_squared_error', return_train_score=True)
+grid_search.fit(housing_prepared, housing_labels)
+
+print(grid_search.best_params_)
+
+print(grid_search.best_estimator_)
+
+cvres = grid_search.cv_results_
+
+for mean_score, params in zip(cvres['mean_test_score'], cvres['params']):
+    print(np.sqrt(-mean_score), params)
