@@ -6,7 +6,8 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import confusion_matrix
-from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
+from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve, roc_curve, roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
 
 memory = Memory('./tmp')
 fetch_openml_cached = memory.cache(fetch_openml)
@@ -112,3 +113,45 @@ print('precision_score', r)
 
 recall_at_90_precision = recall_score(y_train_5, y_train_pred_90)
 print('recall_at_90_precision', recall_at_90_precision)
+
+fpr, tpr, thresholds = roc_curve(y_train_5, y_scores)
+
+idx_for_threshold_at_90 = (thresholds <= threshold_for_90_precision).argmax()
+
+tpr_90, fpr_90 = tpr[idx_for_threshold_at_90], fpr[idx_for_threshold_at_90]
+
+plt.figure(figsize=(6, 5))
+plt.plot(fpr, tpr, linewidth=2, label="ROC curve")
+plt.plot([0, 1], [0, 1], 'k:', label="Random classifier's ROC curve")
+plt.plot([fpr_90], [tpr_90], "ko", label="Threshold for 90% precision")
+# plt.show()
+
+r = roc_auc_score(y_train_5, y_scores)
+print('roc_auc_score', r)
+
+forest_clf = RandomForestClassifier(random_state=42)
+
+y_probas_forest = cross_val_predict(
+    forest_clf, X_train, y_train_5, cv=3, method='predict_proba')
+
+print(y_probas_forest[:2])
+
+y_scores_forest = y_probas_forest[:, 1]
+
+precisions_forest, recalls_forest, thresholds_forest = precision_recall_curve(
+    y_train_5, y_scores_forest)
+
+
+plt.figure(figsize=(5, 5))
+plt.plot(recalls_forest, precisions_forest, 'b-',
+         linewidth=2, label='Random Forest')
+
+plt.plot(recalls, precisions, '--', linewidth=2, label='SGD')
+plt.show()
+
+y_train_pred_forest = y_probas_forest[:, 1] >= 0.5
+r = f1_score(y_train_5, y_train_pred_forest)
+print('forest_f1_score', r)
+
+r = roc_auc_score(y_train_5, y_scores_forest)
+print('forest_roc_auc_score', r)
