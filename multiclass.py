@@ -59,9 +59,45 @@ r = cross_val_score(sgd_clf, x_train_scaled, y_train, cv=3, scoring='accuracy')
 print(r)
 
 y_train_pred = cross_val_predict(sgd_clf, x_train_scaled, y_train, cv=3)
-ConfusionMatrixDisplay.from_predictions(y_train, y_train_pred)
-plt.show()
 
-ConfusionMatrixDisplay.from_predictions(
-    y_train, y_train_pred, normalize='true', values_format='.0%')
+# ConfusionMatrixDisplay.from_predictions(y_train, y_train_pred)
+# plt.show()
+
+# ConfusionMatrixDisplay.from_predictions(
+#     y_train, y_train_pred, normalize='true', values_format='.0%')
+# plt.show()
+
+# sample_weight = (y_train_pred != y_train)
+# ConfusionMatrixDisplay.from_predictions(
+#     y_train, y_train_pred, sample_weight=sample_weight, normalize='true', values_format='.0%')
+# plt.show()
+
+# ConfusionMatrixDisplay.from_predictions(
+#     y_train, y_train_pred, sample_weight=sample_weight, normalize='pred', values_format='.0%')
+# plt.show()
+
+cl_a, cl_b = '3', '5'
+X_aa =X_train[(y_train == cl_a)&(y_train_pred == cl_a)]
+X_ab =X_train[(y_train == cl_a)&(y_train_pred == cl_b)]
+X_ba =X_train[(y_train == cl_b)&(y_train_pred == cl_a)]
+X_bb =X_train[(y_train == cl_b)&(y_train_pred == cl_b)]
+
+
+size = 5
+pad = 0.2
+plt.figure(figsize=(size, size))
+for images, (label_col, label_row) in [(X_ba, (0, 0)), (X_bb, (1, 0)),
+                                       (X_aa, (0, 1)), (X_ab, (1, 1))]:
+    for idx, image_data in enumerate(images[:size*size]):
+        x = idx % size + label_col * (size + pad)
+        y = idx // size + label_row * (size + pad)
+        plt.imshow(image_data.reshape(28, 28), cmap="binary",
+                   extent=(x, x + 1, y, y + 1))
+plt.xticks([size / 2, size + pad + size / 2], [str(cl_a), str(cl_b)])
+plt.yticks([size / 2, size + pad + size / 2], [str(cl_b), str(cl_a)])
+plt.plot([size + pad / 2, size + pad / 2], [0, 2 * size + pad], "k:")
+plt.plot([0, 2 * size + pad], [size + pad / 2, size + pad / 2], "k:")
+plt.axis([0, 2 * size + pad, 0, 2 * size + pad])
+plt.xlabel("Predicted label")
+plt.ylabel("True label")
 plt.show()
